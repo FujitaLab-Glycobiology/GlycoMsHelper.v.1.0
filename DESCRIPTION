@@ -1,0 +1,25 @@
+Package: GlycoMsHelper.v.1.0
+Title: Tool for glycan MS data analysis and interpretation
+Version: 1.0
+Authors@R: 
+    person("Weize Kong", "Morihisa Fujita", , "fujita.morihisa.h3@f.gifu-u.ac.jp", role = c("aut", "cre"))
+Description: What the package does (one paragraph).
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports: 
+    dplyr,
+    ggplot2,
+    patchwork,
+    rlang,
+    segmented,
+    enviPat,
+    Spectra,
+    stats,
+    utils
+Depends: 
+    R (>= 4.1.0)
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
