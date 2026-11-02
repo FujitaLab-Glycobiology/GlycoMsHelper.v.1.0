@@ -124,7 +124,7 @@ find_ms2_spectra_by_diagnostic_fragments = function(
 
             ms2_isolation_window_target_mz = get_meta(name = 'isolationWindowTargetMz', spectra_data = current_ms2_data, missing_value = NA),
             ms2_peaks_count = get_meta(name = 'peaksCount', spectra_data = current_ms2_data, missing_value = NA),
-            ms2_tot_ion_current = get_meta(name = 'totIonCurrent', spectra_data = current_ms2_data, missing_value = NA),
+            ms2_total_ion_current = get_meta(name = 'totIonCurrent', spectra_data = current_ms2_data, missing_value = NA),
             ms2_base_peak_mz = get_meta(name = 'basePeakMZ', spectra_data = current_ms2_data, missing_value = NA),
             ms2_base_peak_intensity = get_meta(name = 'basePeakIntensity', spectra_data = current_ms2_data, missing_value = NA),
             ms2_collision_energy = get_meta(name = 'collisionEnergy', spectra_data = current_ms2_data, missing_value = NA),

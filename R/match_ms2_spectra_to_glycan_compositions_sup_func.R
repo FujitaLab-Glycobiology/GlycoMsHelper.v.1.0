@@ -4,6 +4,7 @@ get_required_diagnostic_ms2_output_cols <- function() {
         "ms2_precursor_charge",
         "ms2_precursor_mz",
         "ms2_retention_time",
+        "ms2_total_ion_current",
         "ms1_spectrum_id",
         "ms1_retention_time"
     )

@@ -661,7 +661,11 @@ DiagnosticFragmentsConfigDefault = function() {
     Bi_HexNAc =           407.16607, 
     Bisecting =           1009.4824, 
     Bisecting_dHex =      1155.5403, 
-    Hex_HexNAc_ProA =     603.3236
+    Hex_HexNAc_ProA =     603.3236, 
+    Hex_HexNAc =          366.1395, 
+    Hex_2AB =           301.1394, 
+    HexNAc_2AB =            342.1660, 
+    dHex_2AB =             285.1445
   )
 }
 
