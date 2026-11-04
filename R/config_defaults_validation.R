@@ -764,6 +764,11 @@ validate_plot_ms2_denoising_info = function(ms2_spectrum_id, ms_data, denoised_d
     ms2_data = Spectra::filterMsLevel(ms_data, msLevel = 2)
     ms2_spectrum_ids = as.character(ms2_data[["spectrumId"]])
 
+    # check class 
+    if (!inherits(denoised_data, "denoised_ms_data_ms2")) {
+        stop("`denoised_data` must be of class 'denoised_ms_data_ms2' from MS2SpectrumDenoising().")
+    }
+
     # check ms2_spectrum_id
     if (!is.character(ms2_spectrum_id) || length(ms2_spectrum_id) != 1L) {
         stop("`ms2_spectrum_id` must be a single character string (example: `function=2 process=0 scan=2`).")
@@ -782,11 +787,6 @@ validate_plot_ms2_denoising_info = function(ms2_spectrum_id, ms_data, denoised_d
         stop("The specified `ms2_spectrum_id` has not been successfully denoised.")
     }
 
-    # check class 
-    if (!inherits(denoised_data, "denoised_ms_data_ms2")) {
-        stop("`denoised_data` must be of class 'denoised_ms_data_ms2' from MS2SpectrumDenoising().")
-    }
-
     # check the denoised_data
     if (!is.list(denoised_data) || !all(c("denoising_result", "denoised_ms_data", "config") %in% names(denoised_data))) {
         stop("`denoised_data` must be a list containing 'denoising_result', 'denoised_ms_data', and 'config' from MS2SpectrumDenoising().")
@@ -797,7 +797,8 @@ validate_plot_ms2_denoising_info = function(ms2_spectrum_id, ms_data, denoised_d
     }
 
     # check if denoised_data$denoising_result matches the ms2 id in ms_data
-    if (!identical(ms2_spectrum_ids, denoised_data$denoising_result$ms2_spectrum_id)) {
+    # if (!identical(ms2_spectrum_ids, denoised_data$denoising_result$ms2_spectrum_id)) {
+    if (!all(denoised_data$denoising_result$ms2_spectrum_id %in% ms2_spectrum_ids)) {
         stop("The specified `ms2_spectrum_id` does not exist in the `denoising_result` of the provided `denoised_data`.")
     }
 

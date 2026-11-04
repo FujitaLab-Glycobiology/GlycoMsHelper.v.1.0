@@ -119,6 +119,7 @@ get_supported_ms_data_filtering_variables <- function() {
 
 get_reference_monosaccharides_molecular_formula <- function() {
     c(
+        # monosaccharides
         Hex = 'C6H10O5',
         HexNAc = 'C8H13N1O5',
         dHex = 'C6H10O4',
@@ -126,9 +127,19 @@ get_reference_monosaccharides_molecular_formula <- function() {
         HexA = 'C6H8O6',
         Neu5Gc = 'C11H17N1O9',
         Pentose = 'C5H8O4',
-        KDN = 'C9H14O8',
-        EtNP = 'C2H6N1O3P1',
-        AHM = 'C6H8O4'
+        KDN = 'C9H14O8', 
+        EtNP = 'C2H6N1O3P1', 
+        AHM = 'C6H8O4', 
+        # label
+        ProA = 'C13H23N3O1', 
+        AB = 'C7H10N2', 
+        PA = 'C5H8N2', 
+        # adduct
+        H = 'H1',
+        Na = 'Na1',
+        K = 'K1',
+        Li = 'Li1',
+        Mg = 'Mg1'
     )
 }
 
