@@ -667,6 +667,45 @@ plot_ms2_spectra = function(ms2_spectrum_id, ms_data, denoised_data) {
                 x = "m/z", y = "Intensity") +
             ggplot2::theme_classic()
     }
+
+    # label the top 30% most intense peaks
+    label_data = spectra_data_raw[
+        is.finite(spectra_data_raw$mz) &
+        is.finite(spectra_data_raw$intensity),
+        ,
+        drop = FALSE
+    ]
+
+    label_data = label_data[
+        order(label_data$intensity, decreasing = TRUE),
+        ,
+        drop = FALSE
+    ]
+
+    label_data = head(
+        label_data,
+        ceiling(nrow(label_data) * 0.30)
+    )
+
+    spectra_plot = spectra_plot + 
+        ggplot2::geom_text(
+            data = label_data,
+            mapping = ggplot2::aes(
+                x = mz,
+                y = intensity,
+                label = format(
+                    intensity,
+                    scientific = FALSE,
+                    trim = TRUE
+                )
+            ),
+            inherit.aes = FALSE,
+            colour = "black",
+            size = 3,
+            vjust = -0.5,
+            check_overlap = FALSE
+        )
+
     return(spectra_plot)
 }
 
