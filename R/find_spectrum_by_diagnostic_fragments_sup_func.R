@@ -328,9 +328,8 @@ plot_diagnostic_fragments_signal_info <- function(
   intensity_plot_data = plot_data |>
     dplyr::filter(!is.na(.data[["matched_mz"]])) |>
     dplyr::mutate(
-      intensity_minmax_norm =
-        (.data[["intensity"]] - min(.data[["intensity"]])) /
-        (max(.data[["intensity"]]) - min(.data[["intensity"]]))
+      intensity_fraction =
+        (.data[["intensity"]]) / (sum(.data[["intensity"]]))
     )
 
   error_plot_data = dplyr::filter(plot_data, !is.na(.data[["mass_error"]]))
@@ -351,6 +350,29 @@ plot_diagnostic_fragments_signal_info <- function(
       expand = ggplot2::expansion(mult = 0.1)
     )
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   colour_scale <- function() {
     ggplot2::scale_colour_manual(
       values = c(positive = "black", negative = "grey50"),
@@ -360,27 +382,106 @@ plot_diagnostic_fragments_signal_info <- function(
       drop = FALSE
     )
   }
+
+  fractions <- intensity_plot_data$intensity_fraction
+  valid <- is.finite(fractions) & fractions > 0
+  max_fraction <- if (any(valid)) max(fractions[valid]) else 1
+  colour_limits <- c(0, max_fraction^(1/3))
+
+  fraction_labels <- function(x) format(signif(x^3, 3), trim = TRUE)
+
+  positive_colours <- viridisLite::rocket(256, direction = -1)
+
+  negative_colours <- grDevices::colorRampPalette(
+    c("#F0F0F3", "#0000FF"), space = "rgb"
+  )(256)
+
+  fragment_points <- function(data, position = "identity") {
+    list(
+      ggplot2::geom_point(
+        data = dplyr::filter(data, .data[["condition"]] == "positive"),
+        mapping = ggplot2::aes(
+          colour = .data[["intensity_fraction"]]^(1/3)
+        ),
+        shape = 16, size = 1.5, position = position
+      ),
+      ggplot2::geom_point(
+        data = dplyr::filter(data, .data[["condition"]] == "negative"),
+        mapping = ggplot2::aes(
+          fill = .data[["intensity_fraction"]]^(1/3)
+        ),
+        shape = 21, colour = NA, stroke = 0, size = 1.5,
+        position = position
+      ),
+      ggplot2::scale_colour_gradientn(
+        name = "Positive intensity (x^1/3 transformed)",
+        colours = positive_colours,
+        limits = colour_limits, labels = fraction_labels,
+        guide = ggplot2::guide_colourbar(order = 1)
+      ),
+      ggplot2::scale_fill_gradientn(
+        name = "Negative intensity (x^1/3 transformed)",
+        colours = negative_colours,
+        limits = colour_limits, labels = fraction_labels,
+        guide = ggplot2::guide_colourbar(order = 2)
+      )
+    )
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   
   p_intensity <- ggplot2::ggplot(
     intensity_plot_data,
     ggplot2::aes(
       x = .data[["target_mz"]],
-      y = .data[["intensity_minmax_norm"]]
+      y = .data[["intensity_fraction"]]
     )
   ) +
     ggplot2::geom_line(
       ggplot2::aes(group = .data[["ms2_index"]]),
       colour = "black", linewidth = 0.4, alpha = 0.5, show.legend = FALSE
     ) +
-    ggplot2::geom_point(
-      ggplot2::aes(colour = .data[["condition"]]),
-      size = 1.5
-    ) +
-    x_scale() + colour_scale() +
+    fragment_points(intensity_plot_data) +
+    x_scale() +
     ggplot2::expand_limits(y = 0) +
     ggplot2::labs(
       x = NULL,
-      y = "Intensity (min-max normalized)"
+      y = "Intensity (fraction of total)"
     ) +
     ggplot2::theme_classic(base_size = 12) +
     ggplot2::theme(

@@ -17,7 +17,8 @@ Imports:
     enviPat,
     Spectra,
     stats,
-    utils
+    utils,
+    viridisLite
 Depends: 
     R (>= 4.1.0)
 Suggests: 
