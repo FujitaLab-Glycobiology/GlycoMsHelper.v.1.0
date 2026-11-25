@@ -30,14 +30,14 @@ find_jump_point_by_mean_n_sd = function(data, n) {
     # threshold is defined as mean + n * standard deviation of the differences
 
     data_sorted = data.frame(value = sort(data))
-    data_sorted = dplyr::mutate(data_sorted, data_diff = c(0, diff(value)))    
+    data_sorted = dplyr::mutate(data_sorted, data_diff = c(0, diff(.data[["value"]])))
 
     mean_diff_val = mean(data_sorted$data_diff)
     sd_val = stats::sd(data_sorted$data_diff)
 
     threshold = mean_diff_val + n * sd_val
 
-    data_possible_jump_points = dplyr::filter(data_sorted, data_diff > threshold)
+    data_possible_jump_points = dplyr::filter(data_sorted, .data[["data_diff"]] > .env$threshold)
 
     if (nrow(data_possible_jump_points) == 0) {
         stop(paste0("Jump point not found in current mean + n * sd threshold (n = ", n, ")."), call. = FALSE)
@@ -116,7 +116,7 @@ do_ms_data_preprocessing = function(ms_data, config) {
                             call. = FALSE)
                     }
                 )
-                
+
                 if (!is.numeric(bounds) || length(bounds) != 2L || anyNA(bounds) || bounds[1] > bounds[2]) {
                     stop("Invalid filtering bounds for ", level_name, ".", variable_name, ".", call. = FALSE)
                 }
@@ -140,7 +140,7 @@ do_ms_data_preprocessing = function(ms_data, config) {
     }
 
     return(list(
-        processed_ms_data = ms_data[keep], 
+        processed_ms_data = ms_data[keep],
         filter_records = filter_records
         )
     )
@@ -172,7 +172,10 @@ plot_processed_ms_data_variables = function(record_df) {
     do_plot = function(data_df, variable_name, title, x_label) {
         data_df = data_df[order(data_df$status == "keep"), , drop = FALSE]
 
-        plot = ggplot2::ggplot(data_df, ggplot2::aes(x = spectrum_index, y = values, colour = status)) + 
+        plot = ggplot2::ggplot(
+                data_df,
+                ggplot2::aes(x = .data[["spectrum_index"]], y = .data[["values"]], colour = .data[["status"]])
+            ) +
                 ggplot2::geom_point(size = 1.5) +
                 ggplot2::scale_colour_manual(values = c(keep = "black", drop = "grey60"), limits = c("keep", "drop"), drop = FALSE, name = "Status") +
                 ggplot2::theme_classic(base_size = 12) +
@@ -181,16 +184,16 @@ plot_processed_ms_data_variables = function(record_df) {
 
         # rtime use fixed y-axis and hide y-axis information.
         if (variable_name == "rtime") {
-            plot = plot + 
+            plot = plot +
                 ggplot2::scale_y_continuous(breaks = NULL, limits = c(0.5, 1.5)) +
-                ggplot2::labs(y = NULL) + 
+                ggplot2::labs(y = NULL) +
                 ggplot2::theme(axis.line.y = ggplot2::element_blank(), axis.ticks.y = ggplot2::element_blank())
         }
 
         return(plot)
     }
 
-    plots = list()    
+    plots = list()
     ms_level_names = unique(names(record_df))
 
     for (ms_level in ms_level_names) {
@@ -201,11 +204,11 @@ plot_processed_ms_data_variables = function(record_df) {
 
         for (ms_variable in ms_variable_names) {
             data_df = record_df[[ms_level]][[ms_variable]]
-            
+
             if (!identical(unique(as.character(data_df$variable_name)), ms_variable)) {
                 stop("Unexpected variable name for ", ms_level, ".", ms_variable)
             }
-            
+
             plot_title = paste(ms_level, ms_variable, sep = " / ")
 
             if (ms_variable == "rtime") {
@@ -216,12 +219,12 @@ plot_processed_ms_data_variables = function(record_df) {
                 )
                 plots[[ms_level]][[ms_variable]] = do_plot(rt_data, variable_name = ms_variable, title = plot_title, x_label = "Retention time")
             } else {
-                plot_original = do_plot(data_df, variable_name = ms_variable, title = paste(plot_title, "— spectrum order"), x_label = "Spectrum index")
+                plot_original = do_plot(data_df, variable_name = ms_variable, title = paste(plot_title, "- spectrum order"), x_label = "Spectrum index")
 
-                sorted_data = dplyr::arrange(data_df, values)
+                sorted_data = dplyr::arrange(data_df, .data[["values"]])
                 sorted_data$spectrum_index = seq_len(nrow(sorted_data))
 
-                plot_sorted = do_plot(sorted_data, variable_name = ms_variable, title = paste(plot_title, "— ascending value order"), x_label = "Sorted index")
+                plot_sorted = do_plot(sorted_data, variable_name = ms_variable, title = paste(plot_title, "- ascending value order"), x_label = "Sorted index")
 
                 plots[[ms_level]][[ms_variable]] =
                     patchwork::wrap_plots(

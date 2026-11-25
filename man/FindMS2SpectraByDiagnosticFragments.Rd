@@ -38,9 +38,10 @@ an R list.}
 containing one R expression that evaluates to a single non-missing
 logical value for each spectrum. Referenced fragment names must
 occur in \code{diagnostic_frags_list} and are case-sensitive.
-Combine presence conditions using operators such as \code{&}, \code{|},
-and \code{!}, with parentheses as needed. For example,
-\code{"HexNAc & (HexNAc_ProA | Hex)"}. This argument has no default.}
+Combine presence conditions using only fragment names, \code{&}, \code{|},
+\code{!}, and parentheses. For example,
+\code{"HexNAc & (HexNAc_ProA | Hex)"}. A fragment must not appear in
+both positive and negative conditions. This argument has no default.}
 
 \item{mass_error_tolerance_type}{A single character string specifying
 the fragment matching tolerance: \code{"ppm_tolerance"} for relative
@@ -54,9 +55,13 @@ Matching includes the tolerance boundary. This argument has
 no default.}
 }
 \value{
-When matches are found, a data frame with additional class
-\code{"diagnostic_ms2_result"} and one row per matching MS2 spectrum.
-Contains the following columns:
+When matches are found, a list with class \code{"diagnostic_ms2_result"}
+and the following elements. Returns \code{NULL} if screening completes
+without a matching spectrum.
+\describe{
+\item{target_spectra}{
+A data frame with one row per matching MS2 spectrum and the
+following columns:
 \describe{
 \item{ms2_spectrum_id}{
 Identifier of the matching MS2 spectrum.
@@ -82,7 +87,7 @@ MS2 isolation-window target m/z from \code{isolationWindowTargetMz}.
 \item{ms2_peaks_count}{
 Peak count stored in the denoised MS2 \code{peaksCount} metadata.
 }
-\item{ms2_tot_ion_current}{
+\item{ms2_total_ion_current}{
 Total ion current stored in the denoised MS2 \code{totIonCurrent}
 metadata.
 }
@@ -102,7 +107,26 @@ MS2 ionisation energy from \code{ionisationEnergy}.
 MS2 precursor intensity from \code{precursorIntensity}.
 }
 }
-Returns \code{NULL} if screening completes without a matching spectrum.
+}
+\item{diagnostic_fragments_signal_info}{
+A list with two elements:
+\describe{
+\item{diagnostic_fragments_signal_info_plot}{
+A patchwork object with the normalized-intensity panel and
+the mass-error panel described above.
+}
+\item{diagnostic_fragments_signal_info_data}{
+A data frame with one row per matching spectrum and
+fragment, with columns \code{fragment}, \code{target_mz},
+\code{condition} (\code{"positive"} or \code{"negative"}), \code{ms2_index}
+(position in the denoised MS2 spectra), \code{ms2_spectrum_id},
+\code{matched_mz}, \code{intensity}, and \code{mass_error}. Fragments
+without a matching peak have \code{NA} in \code{matched_mz} and
+\code{mass_error}, and \code{0} in \code{intensity}.
+}
+}
+}
+}
 
 MS2 metadata are copied from the denoised object, and MS1 metadata
 from \code{ms_data_raw}. Missing optional metadata fields are filled
@@ -110,14 +134,16 @@ with \code{NA}. This function does not recalculate metadata; in particular,
 base-peak fields may still describe the spectrum before denoising.
 Retention-time and other metadata units are preserved.
 
-The result can be supplied as \code{diagnostic_ms2_result} to
+The complete result can be supplied as \code{diagnostic_ms2_result} to
 \code{MatchMS2SpectraToGlycanCompositions()}.
 }
 \description{
 Screen successfully denoised MS2 spectra using a logical expression
 of diagnostic fragment presence. For each matching spectrum, return
 its metadata together with the identifier and retention time of the
-nearest preceding MS1 spectrum.
+nearest preceding MS1 spectrum. Also return a diagnostic plot and
+table summarising the signal intensity and mass error of the
+diagnostic fragments in the matching spectra.
 }
 \details{
 Fragment definitions, expression syntax, referenced fragment names,
@@ -130,9 +156,10 @@ should uniquely identify scans across the supplied objects.
 MS2 retention times are taken from the denoised object.
 
 A text progress bar is displayed during screening. Matching spectra
-are returned in their order in the denoised input. The result
-contains metadata rather than peak arrays, fragment-presence flags,
-matched peak m/z values, or fragment mass errors.
+are returned in their order in the denoised input. The
+\code{target_spectra} table contains metadata rather than peak arrays,
+fragment-presence flags, matched peak m/z values, or fragment mass
+errors; the latter are available in the signal-info table.
 }
 \section{Diagnostic fragment matching}{
 
@@ -186,6 +213,32 @@ must use the same units. If a matching MS2 spectrum has no earlier
 MS1 spectrum, the function stops with an error.
 }
 
+\section{Diagnostic fragment signal plot}{
+
+The signal plot is built from the matching spectra only. Its fragment
+set is every fragment referenced in \code{diagnostic_frags_exp}, labelled
+as a positive condition (not negated) or a negative condition
+(negated by \code{!}, including through enclosing parentheses).
+Matching spectra are selected using the positive part of the
+expression, with negated terms removed.
+
+For each matching spectrum and each fragment, the peak with the
+highest intensity within the mass-error tolerance window is
+selected. Fragments with no peak in the window (for example, negative
+conditions) have no matched m/z, no mass error, and are not drawn.
+
+The plot has two panels sharing the fragment m/z axis:
+\itemize{
+\item Top: min-max normalized intensity of the matched peaks,
+with a line connecting the fragments of each spectrum.
+\item Bottom: signed mass error of the matched peaks, in the
+unit given by \code{mass_error_tolerance_type}, with horizontal
+jitter to reduce overplotting.
+}
+Points are coloured by positive or negative condition. Intensities
+are normalized across all plotted points, not within each spectrum.
+}
+
 \section{No matching spectra}{
 
 If screening completes without a match, the function emits
@@ -216,7 +269,11 @@ matches <- FindMS2SpectraByDiagnosticFragments(
   mass_error_tolerance_val = 10
 )
 
-head(matches)
+head(matches$target_spectra)
+
+# Diagnostic fragment signal plot and underlying data
+matches$diagnostic_fragments_signal_info$diagnostic_fragments_signal_info_plot
+head(matches$diagnostic_fragments_signal_info$diagnostic_fragments_signal_info_data)
 
 # Use a subset of targets and an absolute m/z tolerance
 selected_fragments <- fragments[c("HexNAc", "HexNAc_ProA")]

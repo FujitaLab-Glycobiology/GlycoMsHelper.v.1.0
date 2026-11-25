@@ -1,3 +1,6 @@
+#' @importFrom rlang .data .env :=
+NULL
+
 #---------------------------------------------
 # glycan library construction main functions
 #---------------------------------------------
@@ -1244,14 +1247,15 @@ PlotMS2DenoisingInfo = function(ms2_spectrum_id, ms_data, denoised_data) {
 # find MS2 spectrum by diagnostic fragments main functions
 #-----------------------------------------------------------
 # logical expression-based filtering 
-
 #' Find MS2 Spectra Matching Diagnostic Fragment Conditions
 #'
 #' @description
 #' Screen successfully denoised MS2 spectra using a logical expression
 #' of diagnostic fragment presence. For each matching spectrum, return
 #' its metadata together with the identifier and retention time of the
-#' nearest preceding MS1 spectrum.
+#' nearest preceding MS1 spectrum. Also return a diagnostic plot and
+#' table summarising the signal intensity and mass error of the
+#' diagnostic fragments in the matching spectra.
 #'
 #' @param denoised_data An object of class `"denoised_ms_data_ms2"`
 #'   returned by [MS2SpectraDenoising()]. Must contain `denoising_result`
@@ -1274,9 +1278,10 @@ PlotMS2DenoisingInfo = function(ms2_spectrum_id, ms_data, denoised_data) {
 #'   containing one R expression that evaluates to a single non-missing
 #'   logical value for each spectrum. Referenced fragment names must
 #'   occur in `diagnostic_frags_list` and are case-sensitive.
-#'   Combine presence conditions using operators such as `&`, `|`,
-#'   and `!`, with parentheses as needed. For example,
-#'   `"HexNAc & (HexNAc_ProA | Hex)"`. This argument has no default.
+#'   Combine presence conditions using only fragment names, `&`, `|`,
+#'   `!`, and parentheses. For example,
+#'   `"HexNAc & (HexNAc_ProA | Hex)"`. A fragment must not appear in
+#'   both positive and negative conditions. This argument has no default.
 #' @param mass_error_tolerance_type A single character string specifying
 #'   the fragment matching tolerance: `"ppm_tolerance"` for relative
 #'   error in parts per million, or `"absolute_tolerance"` for an
@@ -1335,6 +1340,30 @@ PlotMS2DenoisingInfo = function(ms2_spectrum_id, ms_data, denoised_data) {
 #' must use the same units. If a matching MS2 spectrum has no earlier
 #' MS1 spectrum, the function stops with an error.
 #'
+#' @section Diagnostic fragment signal plot:
+#' The signal plot is built from the matching spectra only. Its fragment
+#' set is every fragment referenced in `diagnostic_frags_exp`, labelled
+#' as a positive condition (not negated) or a negative condition
+#' (negated by `!`, including through enclosing parentheses).
+#' Matching spectra are selected using the positive part of the
+#' expression, with negated terms removed.
+#'
+#' For each matching spectrum and each fragment, the peak with the
+#' highest intensity within the mass-error tolerance window is
+#' selected. Fragments with no peak in the window (for example, negative
+#' conditions) have no matched m/z, no mass error, and are not drawn.
+#'
+#' The plot has two panels sharing the fragment m/z axis:
+#' \itemize{
+#'   \item Top: min-max normalized intensity of the matched peaks,
+#'     with a line connecting the fragments of each spectrum.
+#'   \item Bottom: signed mass error of the matched peaks, in the
+#'     unit given by `mass_error_tolerance_type`, with horizontal
+#'     jitter to reduce overplotting.
+#' }
+#' Points are coloured by positive or negative condition. Intensities
+#' are normalized across all plotted points, not within each spectrum.
+#'
 #' @details
 #' Fragment definitions, expression syntax, referenced fragment names,
 #' and mass-error tolerance are checked before screening. The expression
@@ -1346,64 +1375,88 @@ PlotMS2DenoisingInfo = function(ms2_spectrum_id, ms_data, denoised_data) {
 #' MS2 retention times are taken from the denoised object.
 #'
 #' A text progress bar is displayed during screening. Matching spectra
-#' are returned in their order in the denoised input. The result
-#' contains metadata rather than peak arrays, fragment-presence flags,
-#' matched peak m/z values, or fragment mass errors.
+#' are returned in their order in the denoised input. The
+#' `target_spectra` table contains metadata rather than peak arrays,
+#' fragment-presence flags, matched peak m/z values, or fragment mass
+#' errors; the latter are available in the signal-info table.
 #'
 #' @section No matching spectra:
 #' If screening completes without a match, the function emits
 #' `"No MS2 spectrum was identified"` and returns `NULL`.
 #'
 #' @return
-#' When matches are found, a data frame with additional class
-#' `"diagnostic_ms2_result"` and one row per matching MS2 spectrum.
-#' Contains the following columns:
+#' When matches are found, a list with class `"diagnostic_ms2_result"`
+#' and the following elements. Returns `NULL` if screening completes
+#' without a matching spectrum.
 #' \describe{
-#'   \item{ms2_spectrum_id}{
-#'     Identifier of the matching MS2 spectrum.
+#'   \item{target_spectra}{
+#'     A data frame with one row per matching MS2 spectrum and the
+#'     following columns:
+#'     \describe{
+#'       \item{ms2_spectrum_id}{
+#'         Identifier of the matching MS2 spectrum.
+#'       }
+#'       \item{ms2_precursor_charge}{
+#'         MS2 precursor charge from `precursorCharge`.
+#'       }
+#'       \item{ms2_precursor_mz}{
+#'         MS2 precursor m/z from `precursorMz`.
+#'       }
+#'       \item{ms2_retention_time}{
+#'         MS2 retention time from `rtime`.
+#'       }
+#'       \item{ms1_spectrum_id}{
+#'         Identifier of the nearest strictly preceding MS1 spectrum.
+#'       }
+#'       \item{ms1_retention_time}{
+#'         Retention time of the associated MS1 spectrum.
+#'       }
+#'       \item{ms2_isolation_window_target_mz}{
+#'         MS2 isolation-window target m/z from `isolationWindowTargetMz`.
+#'       }
+#'       \item{ms2_peaks_count}{
+#'         Peak count stored in the denoised MS2 `peaksCount` metadata.
+#'       }
+#'       \item{ms2_total_ion_current}{
+#'         Total ion current stored in the denoised MS2 `totIonCurrent`
+#'         metadata.
+#'       }
+#'       \item{ms2_base_peak_mz}{
+#'         MS2 base-peak m/z from `basePeakMZ`.
+#'       }
+#'       \item{ms2_base_peak_intensity}{
+#'         MS2 base-peak intensity from `basePeakIntensity`.
+#'       }
+#'       \item{ms2_collision_energy}{
+#'         MS2 collision energy from `collisionEnergy`.
+#'       }
+#'       \item{ms2_ionisation_energy}{
+#'         MS2 ionisation energy from `ionisationEnergy`.
+#'       }
+#'       \item{ms2_precursor_intensity}{
+#'         MS2 precursor intensity from `precursorIntensity`.
+#'       }
+#'     }
 #'   }
-#'   \item{ms2_precursor_charge}{
-#'     MS2 precursor charge from `precursorCharge`.
-#'   }
-#'   \item{ms2_precursor_mz}{
-#'     MS2 precursor m/z from `precursorMz`.
-#'   }
-#'   \item{ms2_retention_time}{
-#'     MS2 retention time from `rtime`.
-#'   }
-#'   \item{ms1_spectrum_id}{
-#'     Identifier of the nearest strictly preceding MS1 spectrum.
-#'   }
-#'   \item{ms1_retention_time}{
-#'     Retention time of the associated MS1 spectrum.
-#'   }
-#'   \item{ms2_isolation_window_target_mz}{
-#'     MS2 isolation-window target m/z from `isolationWindowTargetMz`.
-#'   }
-#'   \item{ms2_peaks_count}{
-#'     Peak count stored in the denoised MS2 `peaksCount` metadata.
-#'   }
-#'   \item{ms2_tot_ion_current}{
-#'     Total ion current stored in the denoised MS2 `totIonCurrent`
-#'     metadata.
-#'   }
-#'   \item{ms2_base_peak_mz}{
-#'     MS2 base-peak m/z from `basePeakMZ`.
-#'   }
-#'   \item{ms2_base_peak_intensity}{
-#'     MS2 base-peak intensity from `basePeakIntensity`.
-#'   }
-#'   \item{ms2_collision_energy}{
-#'     MS2 collision energy from `collisionEnergy`.
-#'   }
-#'   \item{ms2_ionisation_energy}{
-#'     MS2 ionisation energy from `ionisationEnergy`.
-#'   }
-#'   \item{ms2_precursor_intensity}{
-#'     MS2 precursor intensity from `precursorIntensity`.
+#'   \item{diagnostic_fragments_signal_info}{
+#'     A list with two elements:
+#'     \describe{
+#'       \item{diagnostic_fragments_signal_info_plot}{
+#'         A patchwork object with the normalized-intensity panel and
+#'         the mass-error panel described above.
+#'       }
+#'       \item{diagnostic_fragments_signal_info_data}{
+#'         A data frame with one row per matching spectrum and
+#'         fragment, with columns `fragment`, `target_mz`,
+#'         `condition` (`"positive"` or `"negative"`), `ms2_index`
+#'         (position in the denoised MS2 spectra), `ms2_spectrum_id`,
+#'         `matched_mz`, `intensity`, and `mass_error`. Fragments
+#'         without a matching peak have `NA` in `matched_mz` and
+#'         `mass_error`, and `0` in `intensity`.
+#'       }
+#'     }
 #'   }
 #' }
-#' Returns `NULL` if screening completes without a matching spectrum.
 #'
 #' MS2 metadata are copied from the denoised object, and MS1 metadata
 #' from `ms_data_raw`. Missing optional metadata fields are filled
@@ -1411,7 +1464,7 @@ PlotMS2DenoisingInfo = function(ms2_spectrum_id, ms_data, denoised_data) {
 #' base-peak fields may still describe the spectrum before denoising.
 #' Retention-time and other metadata units are preserved.
 #'
-#' The result can be supplied as `diagnostic_ms2_result` to
+#' The complete result can be supplied as `diagnostic_ms2_result` to
 #' `MatchMS2SpectraToGlycanCompositions()`.
 #'
 #' @seealso [DiagnosticFragmentsConfigDefault()],
@@ -1444,7 +1497,11 @@ PlotMS2DenoisingInfo = function(ms2_spectrum_id, ms_data, denoised_data) {
 #'   mass_error_tolerance_val = 10
 #' )
 #'
-#' head(matches)
+#' head(matches$target_spectra)
+#'
+#' # Diagnostic fragment signal plot and underlying data
+#' matches$diagnostic_fragments_signal_info$diagnostic_fragments_signal_info_plot
+#' head(matches$diagnostic_fragments_signal_info$diagnostic_fragments_signal_info_data)
 #'
 #' # Use a subset of targets and an absolute m/z tolerance
 #' selected_fragments <- fragments[c("HexNAc", "HexNAc_ProA")]
@@ -1494,13 +1551,26 @@ FindMS2SpectraByDiagnosticFragments = function(
       return(NULL)
     }
 
-    return(
-      structure(
-        target_spectra, 
-        class = unique(c("diagnostic_ms2_result", class(target_spectra)))
-      )
+    diagnostic_fragments_signal_info = tryCatch(
+      plot_diagnostic_fragments_signal_info(
+        denoised_ms_data_ms2 = denoised_ms_data_ms2, 
+        ms_data_raw = ms_data_raw,
+        diagnostic_frags_list = diagnostic_frags_list,
+        diagnostic_frags_exp = diagnostic_frags_exp,
+        mass_error_tolerance_type = mass_error_tolerance_type,
+        mass_error_tolerance_val = mass_error_tolerance_val
+      ), 
+      error = function(e) { warning("Signal plot failed: ", conditionMessage(e)); NULL }
     )
 
+    return(
+      structure(
+        list(
+          target_spectra = target_spectra,
+          diagnostic_fragments_signal_info = diagnostic_fragments_signal_info
+        ), 
+        class = "diagnostic_ms2_result")
+      )
 }
 
 
@@ -1513,13 +1583,15 @@ FindMS2SpectraByDiagnosticFragments = function(
 #' absolute mass error, retain a configurable number of candidates
 #' per spectrum, and attach the corresponding MS2 and MS1 metadata.
 #'
-#' @param diagnostic_ms2_result A data frame inheriting from
+#' @param diagnostic_ms2_result An object of class
 #'   `"diagnostic_ms2_result"`, typically returned by
-#'   [FindMS2SpectraByDiagnosticFragments()]. Must contain
-#'   `ms2_spectrum_id`, `ms2_precursor_charge`, `ms2_precursor_mz`,
-#'   `ms2_retention_time`, `ms1_spectrum_id`, and `ms1_retention_time`.
-#'   Supply one row per MS2 spectrum with unique, non-missing spectrum
-#'   identifiers and valid numeric precursor m/z and charge values.
+#'   [FindMS2SpectraByDiagnosticFragments()]. Supply the complete
+#'   returned object. Its `target_spectra` element must be a data frame
+#'   containing `ms2_spectrum_id`, `ms2_precursor_charge`,
+#'   `ms2_precursor_mz`, `ms2_retention_time`, `ms1_spectrum_id`, and
+#'   `ms1_retention_time`. `target_spectra` must have one row per MS2
+#'   spectrum, with unique, non-missing spectrum identifiers and valid
+#'   numeric precursor m/z and charge values.
 #' @param glycan_library An object of class `"glycan_library"` returned
 #'   by [ConstructGlycanLibrary()]. Supply the complete object.
 #'   Its `glycan_library` element must be a data frame containing
@@ -1597,7 +1669,7 @@ FindMS2SpectraByDiagnosticFragments = function(
 #' required diagnostic-result columns are then joined by
 #' `ms2_spectrum_id`.
 #'
-#' Spectrum identifiers in `diagnostic_ms2_result` should be unique.
+#' Spectrum identifiers in `diagnostic_ms2_result$target_spectra` should be unique.
 #' Uniqueness is not checked by the current validator; duplicate
 #' identifiers can multiply output rows during the metadata join.
 #'
@@ -1995,7 +2067,7 @@ ValidateGlycanCompositionByIsotopePattern = function(
 
     current_ms2_id = ms2_id_all[i]
 
-    current_matching_info = dplyr::filter(matching_results, ms2_spectrum_id == current_ms2_id)
+    current_matching_info = dplyr::filter(matching_results, .data[["ms2_spectrum_id"]] == .env$current_ms2_id)
 
     if (dim(current_matching_info)[1] == 1) {
 
@@ -2020,16 +2092,23 @@ ValidateGlycanCompositionByIsotopePattern = function(
 
       current_ms1_data = as.data.frame(Spectra::peaksData(ms_data_raw)[[this_index]])
 
-      ms1_isolation_window_data = dplyr::filter(current_ms1_data, mz >= ms1_window_left_range & mz <= ms1_window_right_range)
+      ms1_isolation_window_data = dplyr::filter(
+        current_ms1_data,
+        .data[["mz"]] >= .env$ms1_window_left_range & .data[["mz"]] <= .env$ms1_window_right_range
+      )
 
       molecular_list = molecular_formula_all[used_molecular_names]
 
       GetIsotopePatternCosineScore = function(matching_info, mol_list, threshold_iso, ms1_window_data, bin_w) {
-        utils::data(isotopes, package = "enviPat", envir = environment())
-        utils::data(adducts, package = "enviPat", envir = environment())
+        isotopes_env = new.env()
+        utils::data("isotopes", package = "enviPat", envir = isotopes_env)
+        isotopes = isotopes_env[["isotopes"]]
 
         ms1_window_tic = sum(ms1_window_data[['intensity']])
-        ms1_window_data = dplyr::mutate(ms1_window_data, relative_intensity = intensity/ms1_window_tic)
+        ms1_window_data = dplyr::mutate(
+          ms1_window_data,
+          relative_intensity = .data[["intensity"]] / .env$ms1_window_tic
+        )
 
         GetCenteredVector = function(mz_value, intensity_value, centers_value) {
           # attention!!!!!: mz_value, intensity_value must be in same order
@@ -2104,8 +2183,8 @@ ValidateGlycanCompositionByIsotopePattern = function(
 
         #matching_info = dplyr::slice_max(matching_info, cosine_value, n = 1, with_ties = T)
         matching_info <- matching_info |>
-          dplyr::mutate(score = cosine_value) |>
-          dplyr::slice_max(score, n = 1, with_ties = FALSE)
+          dplyr::mutate(score = .env$cosine_value) |>
+          dplyr::slice_max(.data[["score"]], n = 1, with_ties = FALSE)
 
         return(matching_info)
       }

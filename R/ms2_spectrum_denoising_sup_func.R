@@ -8,7 +8,7 @@ get_transform_function = function(config) {
 
     # built-in transform functions
     if (is.character(config$transform)) {
-        ms2_spectrum_transform_fun = switch(config$transform, 
+        ms2_spectrum_transform_fun = switch(config$transform,
         log2 = function(z) log2(z+1),
         sqrt = function(z) sqrt(z),
         asinh = function(z) asinh(z),
@@ -38,7 +38,7 @@ prepare_ms_spectra_data_4_ms2_denoising = function(ms_data, config) {
         }
         value <- ms2_spectra_data[[name]]
         if (length(value) != n) stop("Metadata length mismatch: ", name)
-        
+
         return(value)
     }
 
@@ -62,11 +62,11 @@ prepare_ms_spectra_data_4_ms2_denoising = function(ms_data, config) {
 
     prepared_ms_data = structure(
         list(
-            ms_data = ms_data, 
+            ms_data = ms_data,
             ms2_spectra_data = ms2_spectra_data,
             ms2_peaks_data = ms2_peaks_data,
             ms2_metadata = ms2_metadata
-        ), 
+        ),
         class = "prepared_ms_data"
     )
 
@@ -79,7 +79,9 @@ prepare_ms_spectra_data_4_ms2_denoising = function(ms_data, config) {
 
 get_spline_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_transform_func, config) {
     # preprocessing
-    current_ms2_spectra_signal_intensity_distinct = dplyr::distinct(current_ms2_spectra_peaks, intensity, .keep_all = TRUE)
+    current_ms2_spectra_signal_intensity_distinct = current_ms2_spectra_peaks[
+        !duplicated(current_ms2_spectra_peaks[["intensity"]]), , drop = FALSE
+    ]
 
     # non-linear transformation of the signal intensities
     ms2_spectra_transformed_signal = sort(ms2_signal_transform_func(current_ms2_spectra_signal_intensity_distinct$intensity))
@@ -95,9 +97,9 @@ get_spline_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_trans
     for (spar in spar_seq) {
         # perform spline smoothing with the current spar
         spline_fit = stats::smooth.spline(
-            x = seq_along(ms2_spectra_transformed_signal), 
-            y = ms2_spectra_transformed_signal, 
-            spar = spar, 
+            x = seq_along(ms2_spectra_transformed_signal),
+            y = ms2_spectra_transformed_signal,
+            spar = spar,
             cv = config$spline_cv
         )
 
@@ -115,16 +117,16 @@ get_spline_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_trans
 
         # D1
         d1 = stats::predict(
-            spline_fit, 
-            x_grid, 
+            spline_fit,
+            x_grid,
             deriv = 1)$y
 
         D1 = sum(abs(diff(d1)))
 
         # D2
         d2 = stats::predict(
-            spline_fit, 
-            x_grid, 
+            spline_fit,
+            x_grid,
             deriv = 2)$y
 
         dx = diff(x_grid)
@@ -137,7 +139,7 @@ get_spline_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_trans
         # store the evaluation results
         spar_eval_data = dplyr::bind_rows(spar_eval_data, spar_eval_val)
     }
-    
+
     # min max normalization
     # min_max_norm = function(x) {
     #     (x - min(x)) / (max(x) - min(x) +1e-12)
@@ -165,10 +167,10 @@ get_spline_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_trans
         D2_norm = min_max_norm(spar_eval_data$D2)
     )
 
-    spar_eval_data_norm = dplyr::mutate(spar_eval_data_norm, 
-        eval_score = dplyr::if_else(is.na(CV_norm), 
-        (config$RMSE_weight + config$CV_weight) * RMSE_norm + config$D1_weight * D1_norm + config$D2_weight * D2_norm, 
-        config$RMSE_weight * RMSE_norm + config$CV_weight * CV_norm + config$D1_weight * D1_norm + config$D2_weight * D2_norm)
+    spar_eval_data_norm = dplyr::mutate(spar_eval_data_norm,
+        eval_score = dplyr::if_else(is.na(.data[["CV_norm"]]),
+        (config$RMSE_weight + config$CV_weight) * .data[["RMSE_norm"]] + config$D1_weight * .data[["D1_norm"]] + config$D2_weight * .data[["D2_norm"]],
+        config$RMSE_weight * .data[["RMSE_norm"]] + config$CV_weight * .data[["CV_norm"]] + config$D1_weight * .data[["D1_norm"]] + config$D2_weight * .data[["D2_norm"]])
         )
 
     valid_idx <- which(is.finite(spar_eval_data_norm$eval_score))
@@ -183,16 +185,16 @@ get_spline_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_trans
 
     # fit the optimal smoothing spline
     spline_fit_optimal = stats::smooth.spline(
-        x = seq_along(ms2_spectra_transformed_signal), 
-        y = ms2_spectra_transformed_signal,  
-        spar = optimal_spar, 
+        x = seq_along(ms2_spectra_transformed_signal),
+        y = ms2_spectra_transformed_signal,
+        spar = optimal_spar,
         cv = config$spline_cv
     )
 
     # signal index
     d1 = stats::predict(
-        spline_fit_optimal, 
-        x_grid, 
+        spline_fit_optimal,
+        x_grid,
         deriv = 1)$y
 
     # remove the top peaks based on the configuration
@@ -213,9 +215,9 @@ get_spline_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_trans
             spar_eval_data = spar_eval_data,
             spar_eval_data_norm = spar_eval_data_norm,
             optimal_spar = optimal_spar,
-            spline_fit_optimal = spline_fit_optimal, 
-            spline_x = seq_along(ms2_spectra_transformed_signal), 
-            spline_y = ms2_spectra_transformed_signal, 
+            spline_fit_optimal = spline_fit_optimal,
+            spline_x = seq_along(ms2_spectra_transformed_signal),
+            spline_y = ms2_spectra_transformed_signal,
             threshold_idx = threshold_idx,
             noise_threshold = noise_threshold
             )
@@ -227,14 +229,16 @@ get_spline_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_trans
 
 get_segmented_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_transform_func, config) {
     # preprocessing
-    current_ms2_spectra_signal_intensity_distinct = dplyr::distinct(current_ms2_spectra_peaks, intensity, .keep_all = TRUE)
+    current_ms2_spectra_signal_intensity_distinct = current_ms2_spectra_peaks[
+        !duplicated(current_ms2_spectra_peaks[["intensity"]]), , drop = FALSE
+    ]
 
     # non-linear transformation of the signal intensities
     ms2_spectra_transformed_signal = sort(ms2_signal_transform_func(current_ms2_spectra_signal_intensity_distinct$intensity))
 
     x_idx = seq_along(ms2_spectra_transformed_signal)
 
-    # lm fit 
+    # lm fit
     lm_fit = stats::lm(ms2_spectra_transformed_signal ~ x_idx)
 
     # segmented regression to find break point
@@ -264,11 +268,11 @@ get_segmented_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_tr
     # output
     return(
         list(
-            lm_fit = lm_fit, 
+            lm_fit = lm_fit,
             lm_fit_linear = lm_fit_linear,
-            lm_fit_non_linear = lm_fit_non_linear, 
-            segmented_x = x_idx, 
-            segmented_y = ms2_spectra_transformed_signal, 
+            lm_fit_non_linear = lm_fit_non_linear,
+            segmented_x = x_idx,
+            segmented_y = ms2_spectra_transformed_signal,
             threshold_idx = threshold_idx,
             noise_threshold = noise_threshold
             )
@@ -279,11 +283,13 @@ get_segmented_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_tr
 
 get_quantile_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_transform_func, config) {
     # preprocessing
-    current_ms2_spectra_signal_intensity_distinct = dplyr::distinct(current_ms2_spectra_peaks, intensity, .keep_all = TRUE)
+    current_ms2_spectra_signal_intensity_distinct = current_ms2_spectra_peaks[
+        !duplicated(current_ms2_spectra_peaks[["intensity"]]), , drop = FALSE
+    ]
 
     # non-linear transformation of the signal intensities
     ms2_spectra_transformed_signal = sort(ms2_signal_transform_func(current_ms2_spectra_signal_intensity_distinct$intensity))
-    
+
     # noise threshold
     quantile_threshold = stats::quantile(ms2_spectra_transformed_signal, config$quantile_prob)
 
@@ -318,26 +324,26 @@ get_fixed_denoising_info = function(current_ms2_spectra_peaks, ms2_signal_transf
 
 calculate_ms2_noise_threshold = function(current_ms2_spectra_peaks, ms2_signal_transform_func, config) {
     # check the number of top peaks
-    if ((config$method == "adaptive") && 
+    if ((config$method == "adaptive") &&
         nrow(current_ms2_spectra_peaks) < config$top_peaks_for_pattern + config$top_peaks_to_remove + 4L) {
             return(list(
                 denoising_method = NA,
-                noise_threshold = 0, 
+                noise_threshold = 0,
                 denoising_status = 'fail'
             )
         )
-    } else if (config$method == "spline" && 
+    } else if (config$method == "spline" &&
         nrow(current_ms2_spectra_peaks) < config$top_peaks_to_remove + 4L) {
             return(list(
                 denoising_method = NA,
-                noise_threshold = 0, 
+                noise_threshold = 0,
                 denoising_status = 'fail'
             )
         )
     } else if (config$method == "segmented" && nrow(current_ms2_spectra_peaks) < 10) {
             return(list(
                 denoising_method = NA,
-                noise_threshold = 0, 
+                noise_threshold = 0,
                 denoising_status = 'fail'
             )
         )
@@ -345,16 +351,16 @@ calculate_ms2_noise_threshold = function(current_ms2_spectra_peaks, ms2_signal_t
         # determine the denoising method
         if(config$method == "adaptive") {
             # get the top n signal intensities
-            top_n_signal = dplyr::arrange(current_ms2_spectra_peaks, dplyr::desc(intensity))
-            top_n_signal = head(top_n_signal, config$top_peaks_for_pattern)
+            top_n_signal = dplyr::arrange(current_ms2_spectra_peaks, dplyr::desc(.data[["intensity"]]))
+            top_n_signal = utils::head(top_n_signal, config$top_peaks_for_pattern)
 
             top_n_signal_mz = sort(top_n_signal$mz)
 
-            # check if the top n signals are isotope spacing 
+            # check if the top n signals are isotope spacing
             is_evenly_spaced <- function(x, tol) {
                 x <- sort(x)
                 gaps = diff(x)
-                
+
                 if (any(gaps <= 0)) {
                     return(FALSE)
                 }
@@ -369,11 +375,11 @@ calculate_ms2_noise_threshold = function(current_ms2_spectra_peaks, ms2_signal_t
             }
 
             if (is_evenly_spaced(top_n_signal_mz, config$top_peaks_evenly_spaced_tol)) {
-                # use spline denoising method 
+                # use spline denoising method
                 denoising_method = "spline"
                 spline_denoising_info = get_spline_denoising_info(
-                    current_ms2_spectra_peaks = current_ms2_spectra_peaks, 
-                    ms2_signal_transform_func = ms2_signal_transform_func, 
+                    current_ms2_spectra_peaks = current_ms2_spectra_peaks,
+                    ms2_signal_transform_func = ms2_signal_transform_func,
                     config = config
                     )
                 denoising_status = 'success'
@@ -382,19 +388,19 @@ calculate_ms2_noise_threshold = function(current_ms2_spectra_peaks, ms2_signal_t
                 # use segmented denoising method
                 denoising_method = "segmented"
                 segmented_denoising_info = get_segmented_denoising_info(
-                    current_ms2_spectra_peaks = current_ms2_spectra_peaks, 
-                    ms2_signal_transform_func = ms2_signal_transform_func, 
+                    current_ms2_spectra_peaks = current_ms2_spectra_peaks,
+                    ms2_signal_transform_func = ms2_signal_transform_func,
                     config = config
                     )
                 denoising_status = 'success'
                 noise_threshold = segmented_denoising_info$noise_threshold
-                }        
+                }
 
         } else if (config$method == "spline") {
             denoising_method = "spline"
             spline_denoising_info = get_spline_denoising_info(
-                current_ms2_spectra_peaks = current_ms2_spectra_peaks, 
-                ms2_signal_transform_func = ms2_signal_transform_func, 
+                current_ms2_spectra_peaks = current_ms2_spectra_peaks,
+                ms2_signal_transform_func = ms2_signal_transform_func,
                 config = config
             )
             denoising_status = 'success'
@@ -403,8 +409,8 @@ calculate_ms2_noise_threshold = function(current_ms2_spectra_peaks, ms2_signal_t
         } else if (config$method == "segmented") {
             denoising_method = "segmented"
             segmented_denoising_info = get_segmented_denoising_info(
-                current_ms2_spectra_peaks = current_ms2_spectra_peaks, 
-                ms2_signal_transform_func = ms2_signal_transform_func, 
+                current_ms2_spectra_peaks = current_ms2_spectra_peaks,
+                ms2_signal_transform_func = ms2_signal_transform_func,
                 config = config
             )
             denoising_status = 'success'
@@ -413,8 +419,8 @@ calculate_ms2_noise_threshold = function(current_ms2_spectra_peaks, ms2_signal_t
         } else if (config$method == "quantile") {
             denoising_method = "quantile"
             quantile_denoising_info = get_quantile_denoising_info(
-                current_ms2_spectra_peaks = current_ms2_spectra_peaks, 
-                ms2_signal_transform_func = ms2_signal_transform_func, 
+                current_ms2_spectra_peaks = current_ms2_spectra_peaks,
+                ms2_signal_transform_func = ms2_signal_transform_func,
                 config = config
             )
             denoising_status = 'success'
@@ -423,8 +429,8 @@ calculate_ms2_noise_threshold = function(current_ms2_spectra_peaks, ms2_signal_t
         } else if (config$method == "fixed") {
             denoising_method = "fixed"
             fixed_denoising_info = get_fixed_denoising_info(
-                current_ms2_spectra_peaks = current_ms2_spectra_peaks, 
-                ms2_signal_transform_func = ms2_signal_transform_func, 
+                current_ms2_spectra_peaks = current_ms2_spectra_peaks,
+                ms2_signal_transform_func = ms2_signal_transform_func,
                 config = config
             )
             denoising_status = 'success'
@@ -437,7 +443,7 @@ calculate_ms2_noise_threshold = function(current_ms2_spectra_peaks, ms2_signal_t
         return(
             list(
                 denoising_method = denoising_method,
-                noise_threshold = noise_threshold, 
+                noise_threshold = noise_threshold,
                 denoising_status = denoising_status
                 )
             )
@@ -466,7 +472,7 @@ do_ms2_spectra_denoising = function(ms_data_prepared, ms2_signal_transform_func,
         denoising_status = character(ms2_length),
         stringsAsFactors = FALSE
     )
-    
+
     # check if the number of MS2 spectra matches the number of MS2 peaks
     if (ms2_length != length(ms_data_prepared$ms2_peaks_data)) {
         stop("Mismatch between the number of MS2 spectra and MS2 peaks.")
@@ -488,24 +494,24 @@ do_ms2_spectra_denoising = function(ms_data_prepared, ms2_signal_transform_func,
         # validate ids
         if (current_ms2_spectra$spectrumId != ms_data_prepared$ms2_metadata$ms2_spectrum_id[i]) {
             stop(paste(
-                "Mismatch between the current MS2 spectrumId and the metadata.", 
-                "Expected: ", ms_data_prepared$ms2_metadata$ms2_spectrum_id[i], 
+                "Mismatch between the current MS2 spectrumId and the metadata.",
+                "Expected: ", ms_data_prepared$ms2_metadata$ms2_spectrum_id[i],
                 " Got: ", current_ms2_spectra$spectrumId
                 )
             )
         }
         if (current_ms2_spectra$acquisitionNum != ms_data_prepared$ms2_metadata$ms2_acquisition_num[i]) {
             stop(paste(
-                "Mismatch between the current MS2 spectrum acquisitionNum and the metadata.", 
-                "Expected: ", ms_data_prepared$ms2_metadata$ms2_acquisition_num[i], 
+                "Mismatch between the current MS2 spectrum acquisitionNum and the metadata.",
+                "Expected: ", ms_data_prepared$ms2_metadata$ms2_acquisition_num[i],
                 " Got: ", current_ms2_spectra$acquisitionNum
                 )
             )
         }
         if (current_ms2_spectra$scanIndex != ms_data_prepared$ms2_metadata$ms2_scan_index[i]) {
             stop(paste(
-                "Mismatch between the current MS2 spectrum scanIndex and the metadata.", 
-                 "Expected: ", ms_data_prepared$ms2_metadata$ms2_scan_index[i], 
+                "Mismatch between the current MS2 spectrum scanIndex and the metadata.",
+                 "Expected: ", ms_data_prepared$ms2_metadata$ms2_scan_index[i],
                  " Got: ", current_ms2_spectra$scanIndex
                 )
             )
@@ -516,15 +522,15 @@ do_ms2_spectra_denoising = function(ms_data_prepared, ms2_signal_transform_func,
 
         if (!all(required_columns %in% colnames(current_ms2_spectra_peaks))) {
             stop(paste(
-                "The MS2 peaks data must contain the following columns: 'mz' and 'intensity'.", 
+                "The MS2 peaks data must contain the following columns: 'mz' and 'intensity'.",
                 "Current spectrumId: ", current_ms2_spectra$spectrumId
                 )
             )
         }
 
         denoising_info = calculate_ms2_noise_threshold(
-            current_ms2_spectra_peaks = current_ms2_spectra_peaks, 
-            ms2_signal_transform_func = ms2_signal_transform_func, 
+            current_ms2_spectra_peaks = current_ms2_spectra_peaks,
+            ms2_signal_transform_func = ms2_signal_transform_func,
             config = config)
 
         noise_threshold = denoising_info$noise_threshold
@@ -549,11 +555,11 @@ do_ms2_spectra_denoising = function(ms_data_prepared, ms2_signal_transform_func,
             return(x)
         }
 
-        idx_row = dplyr::filter(threshold_lookup, 
+        idx_row = dplyr::filter(threshold_lookup,
             as.character(.data$ms2_spectrum_id) == as.character(.env$spectrumId))
-        
+
         if (nrow(idx_row) == 0L) {
-            return(x) 
+            return(x)
         }
 
         if (nrow(idx_row) > 1L) {
@@ -598,7 +604,7 @@ do_ms2_spectra_denoising = function(ms_data_prepared, ms2_signal_transform_func,
         stop("Mismatch in MS2 spectrum IDs or their order.")
     }
 
-    success_denoised_ms2_id = dplyr::filter(denoising_result, denoising_status == "success")$ms2_spectrum_id
+    success_denoised_ms2_id = dplyr::filter(denoising_result, .data[["denoising_status"]] == "success")$ms2_spectrum_id
     success_denoised_ms2_idx = which(as.character(sps[["spectrumId"]]) %in% as.character(success_denoised_ms2_id))
     success_denoised_ms2_peaks_data <- Spectra::peaksData(sps[success_denoised_ms2_idx])
 
@@ -627,7 +633,7 @@ do_ms2_spectra_denoising = function(ms_data_prepared, ms2_signal_transform_func,
 
 
     return(
-        list(denoising_result = denoising_result, 
+        list(denoising_result = denoising_result,
             denoised_ms_data = sps
             )
         )
@@ -648,27 +654,27 @@ plot_ms2_spectra = function(ms2_spectrum_id, ms_data, denoised_data) {
     # ms2 spectrum plot
     if (denoising_detail$denoising_status == "success") {
         # denoised spectra plot
-        spectra_plot = ggplot2::ggplot(spectra_data_raw, ggplot2::aes(x = mz, y = intensity)) + 
+        spectra_plot = ggplot2::ggplot(spectra_data_raw, ggplot2::aes(x = .data[["mz"]], y = .data[["intensity"]])) +
             ggplot2::geom_segment(
-                ggplot2::aes(xend = mz, yend = 0, colour = ifelse(intensity <= denoising_detail$ms2_noise_threshold, "#E0BA48", "black")), 
-                linewidth = 0.2) + 
+                ggplot2::aes(xend = .data[["mz"]], yend = 0, colour = ifelse(.data[["intensity"]] <= denoising_detail$ms2_noise_threshold, "#E0BA48", "black")),
+                linewidth = 0.2) +
             ggplot2::scale_colour_identity() +
             ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.01, 0.05))) +
             ggplot2::labs(
-                title = paste("MS2 spectrum: ", ms2_spectrum_id, "(Denoising status: ", denoising_detail$denoising_status, ")"), 
+                title = paste("MS2 spectrum: ", ms2_spectrum_id, "(Denoising status: ", denoising_detail$denoising_status, ")"),
                 x = "m/z", y = "Intensity") +
             ggplot2::theme_classic()
     } else {
-        spectra_plot = ggplot2::ggplot(spectra_data_raw, ggplot2::aes(x = mz, y = intensity)) + 
-            ggplot2::geom_segment(ggplot2::aes(xend = mz, yend = 0), colour = "black", linewidth = 0.2) + 
+        spectra_plot = ggplot2::ggplot(spectra_data_raw, ggplot2::aes(x = .data[["mz"]], y = .data[["intensity"]])) +
+            ggplot2::geom_segment(ggplot2::aes(xend = .data[["mz"]], yend = 0), colour = "black", linewidth = 0.2) +
             ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.01, 0.05))) +
             ggplot2::labs(
-                title = paste("MS2 spectrum: ", ms2_spectrum_id, "(Denoising status: ", denoising_detail$denoising_status, ")"), 
+                title = paste("MS2 spectrum: ", ms2_spectrum_id, "(Denoising status: ", denoising_detail$denoising_status, ")"),
                 x = "m/z", y = "Intensity") +
             ggplot2::theme_classic()
     }
 
-    # label the top 30% most intense peaks
+    # label the most intense peaks
     label_data = spectra_data_raw[
         is.finite(spectra_data_raw$mz) &
         is.finite(spectra_data_raw$intensity),
@@ -682,22 +688,18 @@ plot_ms2_spectra = function(ms2_spectrum_id, ms_data, denoised_data) {
         drop = FALSE
     ]
 
-    label_data = head(
+    label_data = utils::head(
         label_data,
-        ceiling(nrow(label_data) * 0.30)
+        ceiling(nrow(label_data) * 0.05)
     )
 
-    spectra_plot = spectra_plot + 
+    spectra_plot = spectra_plot +
         ggplot2::geom_text(
             data = label_data,
             mapping = ggplot2::aes(
-                x = mz,
-                y = intensity,
-                label = format(
-                    intensity,
-                    scientific = FALSE,
-                    trim = TRUE
-                )
+                x = .data[["mz"]],
+                y = .data[["intensity"]],
+                label = sprintf("%.4f", .data[["mz"]])
             ),
             inherit.aes = FALSE,
             colour = "black",
@@ -723,23 +725,23 @@ plot_ms2_denoising_info = function(ms2_spectrum_id, ms_data, denoised_data, ms2_
 
     if (denoising_detail$denoising_method == "spline") {
         spline_denoising_info = get_spline_denoising_info(
-            current_ms2_spectra_peaks = spectra_data_raw, 
-            ms2_signal_transform_func = ms2_signal_transform_func, 
+            current_ms2_spectra_peaks = spectra_data_raw,
+            ms2_signal_transform_func = ms2_signal_transform_func,
             config = denoised_data$config)
 
         # spar eval data plot
         spar_eval_data = spline_denoising_info$spar_eval_data
         optimal_spar = spline_denoising_info$optimal_spar
 
-        spar_eval_data = dplyr::arrange(spar_eval_data, spar)
+        spar_eval_data = dplyr::arrange(spar_eval_data, .data[["spar"]])
 
         metric_plots = lapply(c("RMSE", "CV", "D1", "D2"), function(metric) {
-            metric_plot_data = dplyr::select(spar_eval_data, spar, !!rlang::sym(metric))
-            metric_plot_data = dplyr::filter(metric_plot_data, is.finite(!!rlang::sym(metric)))
-            
-            ggplot2::ggplot(metric_plot_data, ggplot2::aes(x = spar, y = !!rlang::sym(metric))) + 
-            ggplot2::geom_point(colour = "black", size = 0.7) + 
-            ggplot2::geom_vline(xintercept = optimal_spar, colour = "#D97732", linetype = "dashed", linewidth = 0.4) + 
+            metric_plot_data = dplyr::select(spar_eval_data, dplyr::all_of(c("spar", metric)))
+            metric_plot_data = dplyr::filter(metric_plot_data, is.finite(.data[[metric]]))
+
+            ggplot2::ggplot(metric_plot_data, ggplot2::aes(x = .data[["spar"]], y = .data[[metric]])) +
+            ggplot2::geom_point(colour = "black", size = 0.7) +
+            ggplot2::geom_vline(xintercept = optimal_spar, colour = "#D97732", linetype = "dashed", linewidth = 0.4) +
             ggplot2::scale_x_continuous(
                 limits = range(spar_eval_data$spar),
                 expand = ggplot2::expansion(mult = c(0.04, 0.04))
@@ -760,8 +762,8 @@ plot_ms2_denoising_info = function(ms2_spectrum_id, ms_data, denoised_data, ms2_
             }
         )
         # combine
-        spline_spar_metric_plots = 
-            patchwork::wrap_plots(metric_plots, nrow = 1) + 
+        spline_spar_metric_plots =
+            patchwork::wrap_plots(metric_plots, nrow = 1) +
             patchwork::plot_annotation(title = ms2_spectrum_id)
 
         # optimal spline plot
@@ -775,21 +777,21 @@ plot_ms2_denoising_info = function(ms2_spectrum_id, ms_data, denoised_data, ms2_
             )
 
         optimal_spline_plot_data = data.frame(
-            x = spline_denoising_info$spline_x, 
+            x = spline_denoising_info$spline_x,
             y = optimal_spline_y
             )
 
-        optimal_spline_plot = ggplot2::ggplot() + 
-            ggplot2::geom_line(data = optimal_spline_plot_data[optimal_spline_plot_data$x <= threshold_idx, ,drop = FALSE], 
-                ggplot2::aes(x = x, y = y), colour = "#A8B1C1", linewidth = 2) + 
+        optimal_spline_plot = ggplot2::ggplot() +
+            ggplot2::geom_line(data = optimal_spline_plot_data[optimal_spline_plot_data$x <= threshold_idx, ,drop = FALSE],
+                ggplot2::aes(x = .data[["x"]], y = .data[["y"]]), colour = "#A8B1C1", linewidth = 2) +
             ggplot2::geom_line(data = optimal_spline_plot_data[optimal_spline_plot_data$x >= threshold_idx, , drop = FALSE],
-                ggplot2::aes(x = x, y = y), color = "#8DBFDF", linewidth = 2) + 
+                ggplot2::aes(x = .data[["x"]], y = .data[["y"]]), color = "#8DBFDF", linewidth = 2) +
             ggplot2::geom_vline(
-                xintercept = threshold_idx, 
-                linetype = "dashed", 
-                color = "#E0873F", 
-                linewidth = 0.5) + 
-            ggplot2::geom_point(data = orginal_spline_x_y_data, ggplot2::aes(x = x, y = y), color = "black", size = 1) + 
+                xintercept = threshold_idx,
+                linetype = "dashed",
+                color = "#E0873F",
+                linewidth = 0.5) +
+            ggplot2::geom_point(data = orginal_spline_x_y_data, ggplot2::aes(x = .data[["x"]], y = .data[["y"]]), color = "black", size = 1) +
             ggplot2::labs(title = ms2_spectrum_id, x = "Index", y = "Transformed intensity") +
             ggplot2::theme_classic(base_size = 18) +
             ggplot2::theme(
@@ -807,8 +809,8 @@ plot_ms2_denoising_info = function(ms2_spectrum_id, ms_data, denoised_data, ms2_
 
     } else if (denoising_detail$denoising_method == "segmented") {
         segmented_denoising_info = get_segmented_denoising_info(
-            current_ms2_spectra_peaks = spectra_data_raw, 
-            ms2_signal_transform_func = ms2_signal_transform_func, 
+            current_ms2_spectra_peaks = spectra_data_raw,
+            ms2_signal_transform_func = ms2_signal_transform_func,
             config = denoised_data$config)
 
         # points data
@@ -826,7 +828,7 @@ plot_ms2_denoising_info = function(ms2_spectrum_id, ms_data, denoised_data, ms2_
             segmented_denoising_info$segmented_x[(segmented_denoising_info$threshold_idx+1):length(segmented_denoising_info$segmented_x)]
             )
         segmented_regression_nonlinear_plot_data = data.frame(
-            x = non_linear_x, 
+            x = non_linear_x,
             y = stats::predict(segmented_denoising_info$lm_fit_non_linear, newdata = data.frame(x_non_linear_transformed = non_linear_x_transformed))
         )
 
@@ -844,15 +846,15 @@ plot_ms2_denoising_info = function(ms2_spectrum_id, ms_data, denoised_data, ms2_
         )
 
         segmented_regression_plot = ggplot2::ggplot() +
-            ggplot2::geom_line(data = initial_linear_regression_plot_data, ggplot2::aes(x = x, y = y), color = "#D5E5EA", linewidth = 2) + 
-            ggplot2::geom_line(data = segmented_regression_linear_plot_data, ggplot2::aes(x = x, y = y), color = "#8C96A8", linewidth = 2) + 
-            ggplot2::geom_line(data = segmented_regression_nonlinear_plot_data, ggplot2::aes(x = x, y = y), color = "#CD8989", linewidth = 2) + 
+            ggplot2::geom_line(data = initial_linear_regression_plot_data, ggplot2::aes(x = .data[["x"]], y = .data[["y"]]), color = "#D5E5EA", linewidth = 2) +
+            ggplot2::geom_line(data = segmented_regression_linear_plot_data, ggplot2::aes(x = .data[["x"]], y = .data[["y"]]), color = "#8C96A8", linewidth = 2) +
+            ggplot2::geom_line(data = segmented_regression_nonlinear_plot_data, ggplot2::aes(x = .data[["x"]], y = .data[["y"]]), color = "#CD8989", linewidth = 2) +
             ggplot2::geom_vline(
-                        xintercept = segmented_denoising_info$threshold_idx, 
-                        linetype = "dashed", 
-                        color = "#E0873F", 
-                        linewidth = 0.5) + 
-            ggplot2::geom_point(data = orginal_segmented_x_y_data, ggplot2::aes(x = x, y = y), color = "black", size = 1) + 
+                        xintercept = segmented_denoising_info$threshold_idx,
+                        linetype = "dashed",
+                        color = "#E0873F",
+                        linewidth = 0.5) +
+            ggplot2::geom_point(data = orginal_segmented_x_y_data, ggplot2::aes(x = .data[["x"]], y = .data[["y"]]), color = "black", size = 1) +
             ggplot2::labs(title = ms2_spectrum_id, x = "Index", y = "Transformed intensity") +
             ggplot2::theme_classic(base_size = 18) +
             ggplot2::theme(

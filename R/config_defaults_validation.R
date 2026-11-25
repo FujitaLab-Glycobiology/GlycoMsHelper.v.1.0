@@ -976,8 +976,36 @@ validate_ms_data_preprocessing_config = function(ms_data, config) {
 
 
 
+# parse the logical expression to determine the polarity of each fragment
+get_logical_exp_polarity <- function(node, negative = FALSE) {
+    if (is.symbol(node)) {
+        return(stats::setNames(
+        if (negative) "negative" else "positive",
+        as.character(node)
+        ))
+    }
 
+    if (!is.call(node)) {
+        stop("Use only fragment names, &, |, ! and parentheses.")
+    }
 
+    op <- as.character(node[[1L]])
+
+    switch(
+        op,
+        "(" = get_logical_exp_polarity(node[[2L]], negative),
+        "!" = get_logical_exp_polarity(node[[2L]], !negative),
+        "&" = c(
+        get_logical_exp_polarity(node[[2L]], negative),
+        get_logical_exp_polarity(node[[3L]], negative)
+        ),
+        "|" = c(
+        get_logical_exp_polarity(node[[2L]], negative),
+        get_logical_exp_polarity(node[[3L]], negative)
+        ),
+        stop("Use only fragment names, &, |, ! and parentheses.")
+    )
+}
 
 validate_diagnostic_frags = function(diagnostic_frags_list, diagnostic_frags_exp) {
   validate_positive_number_vector(
@@ -997,9 +1025,11 @@ validate_diagnostic_frags = function(diagnostic_frags_list, diagnostic_frags_exp
       call. = FALSE
     )
   }
+
+  expr <- parse(text = diagnostic_frags_exp)
   
   parsed_exp = tryCatch(
-    parse(text = diagnostic_frags_exp),
+    expr,
     error = function(e) {
       stop(
         "Invalid diagnostic_frags_exp syntax: ",
@@ -1015,8 +1045,28 @@ validate_diagnostic_frags = function(diagnostic_frags_list, diagnostic_frags_exp
       call. = FALSE
     )
   }
+  
+  polarity <- get_logical_exp_polarity(expr[[1L]])
+  
+  # same fragment appearing in both positive and negative conditions is a conflict
+  conflicts <- vapply(
+    split(polarity, names(polarity)),
+    function(x) length(unique(x)) > 1L,
+    logical(1)
+  )  
+  if (any(conflicts)) {
+    stop(
+      "Fragments occur in both positive and negative conditions: ",
+      paste(names(conflicts)[conflicts], collapse = ", ")
+    )
+  }
+  
 
   logical_exp_names = all.vars(parsed_exp)
+  
+  if (is.null(names(diagnostic_frags_list)) || anyDuplicated(names(diagnostic_frags_list))) {
+    stop("diagnostic_frags_list must have unique fragment names.")
+  }
 
   unknown_names = setdiff(logical_exp_names, names(diagnostic_frags_list))
 
@@ -1028,6 +1078,12 @@ validate_diagnostic_frags = function(diagnostic_frags_list, diagnostic_frags_exp
     )
   }    
 }
+
+
+
+
+
+
 
 
 
@@ -1061,8 +1117,9 @@ validate_ms2_spectra_matching_info = function(
     max_possible_candidates_num
     ) {
         # validate the input parameters
-        if (!inherits(diagnostic_ms2_result, "diagnostic_ms2_result")) {
-            stop("diagnostic_ms2_result must be of class 'diagnostic_ms2_result'")
+        if (!inherits(diagnostic_ms2_result, "diagnostic_ms2_result") || 
+        !is.data.frame(diagnostic_ms2_result$target_spectra)) {
+            stop("diagnostic_ms2_result must be of class 'diagnostic_ms2_result' with a 'target_spectra' data frame")
         }
         if (!inherits(glycan_library, "glycan_library")) {
             stop("glycan_library must be of class 'glycan_library'")
@@ -1071,7 +1128,7 @@ validate_ms2_spectra_matching_info = function(
         required_diagnostic_ms2_output_cols = get_required_diagnostic_ms2_output_cols()
         required_glycan_library_cols = get_required_glycan_library_cols(glycan_library = glycan_library)
 
-        if (!all(required_diagnostic_ms2_output_cols %in% colnames(diagnostic_ms2_result))) {
+        if (!all(required_diagnostic_ms2_output_cols %in% colnames(diagnostic_ms2_result$target_spectra))) {
             stop("diagnostic_ms2_result is missing required columns")
         }
 

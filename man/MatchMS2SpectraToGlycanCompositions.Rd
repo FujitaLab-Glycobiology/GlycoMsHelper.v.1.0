@@ -13,13 +13,15 @@ MatchMS2SpectraToGlycanCompositions(
 )
 }
 \arguments{
-\item{diagnostic_ms2_result}{A data frame inheriting from
+\item{diagnostic_ms2_result}{An object of class
 \code{"diagnostic_ms2_result"}, typically returned by
-\code{\link[=FindMS2SpectraByDiagnosticFragments]{FindMS2SpectraByDiagnosticFragments()}}. Must contain
-\code{ms2_spectrum_id}, \code{ms2_precursor_charge}, \code{ms2_precursor_mz},
-\code{ms2_retention_time}, \code{ms1_spectrum_id}, and \code{ms1_retention_time}.
-Supply one row per MS2 spectrum with unique, non-missing spectrum
-identifiers and valid numeric precursor m/z and charge values.}
+\code{\link[=FindMS2SpectraByDiagnosticFragments]{FindMS2SpectraByDiagnosticFragments()}}. Supply the complete
+returned object. Its \code{target_spectra} element must be a data frame
+containing \code{ms2_spectrum_id}, \code{ms2_precursor_charge},
+\code{ms2_precursor_mz}, \code{ms2_retention_time}, \code{ms1_spectrum_id}, and
+\code{ms1_retention_time}. \code{target_spectra} must have one row per MS2
+spectrum, with unique, non-missing spectrum identifiers and valid
+numeric precursor m/z and charge values.}
 
 \item{glycan_library}{An object of class \code{"glycan_library"} returned
 by \code{\link[=ConstructGlycanLibrary]{ConstructGlycanLibrary()}}. Supply the complete object.
@@ -103,7 +105,7 @@ within each spectrum ordered by increasing mass error. The six
 required diagnostic-result columns are then joined by
 \code{ms2_spectrum_id}.
 
-Spectrum identifiers in \code{diagnostic_ms2_result} should be unique.
+Spectrum identifiers in \code{diagnostic_ms2_result$target_spectra} should be unique.
 Uniqueness is not checked by the current validator; duplicate
 identifiers can multiply output rows during the metadata join.
 

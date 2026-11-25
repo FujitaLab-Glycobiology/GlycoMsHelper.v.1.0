@@ -49,7 +49,7 @@ resolve_adducts = function(config) {
 
     if (!is.null(config$adduct_type)) {
         built_in_adducts = get_reference_adducts()
-        built_in_adducts = dplyr::filter(built_in_adducts, adduct %in% config$adduct_type)
+        built_in_adducts = dplyr::filter(built_in_adducts, .data[["adduct"]] %in% .env$config$adduct_type)
     } else {
         built_in_adducts = data.frame(
             adduct = character(),
@@ -153,46 +153,48 @@ use_n_glycan_rules = function(combo_data, mono_name) {
     if ('Neu5Gc' %in% colnames(combo_data)) {
         combo_data = combo_data |> 
         dplyr::filter(
-            dplyr::if_else(Neu5Ac > 0 | HexA > 0 | Neu5Gc > 0,
-                         Hex >= 3 & HexNAc >= 3 & ((HexNAc-2) >= (Neu5Ac + HexA + Neu5Gc)),
+            dplyr::if_else(.data[["Neu5Ac"]] > 0 | .data[["HexA"]] > 0 | .data[["Neu5Gc"]] > 0,
+                         .data[["Hex"]] >= 3 & .data[["HexNAc"]] >= 3 &
+                           ((.data[["HexNAc"]] - 2) >= (.data[["Neu5Ac"]] + .data[["HexA"]] + .data[["Neu5Gc"]])),
                          TRUE)
           )  |>
         dplyr::filter(
-            dplyr::if_else(dHex >=1 & !(Hex %in% 1:3),
-                         (HexNAc + Hex -5+1) >= dHex,
+            dplyr::if_else(.data[["dHex"]] >= 1 & !(.data[["Hex"]] %in% 1:3),
+                         (.data[["HexNAc"]] + .data[["Hex"]] - 5 + 1) >= .data[["dHex"]],
                          TRUE)
         ) |>
         dplyr::filter(
-            dplyr::if_else(HexNAc == 2 & Hex %in% 1:3,
-                         dHex <= 1 & dplyr::if_all(dplyr::all_of(other_mono_name), ~ .x == 0),
+            dplyr::if_else(.data[["HexNAc"]] == 2 & .data[["Hex"]] %in% 1:3,
+                         .data[["dHex"]] <= 1 & dplyr::if_all(dplyr::all_of(other_mono_name), ~ .x == 0),
                          TRUE)
         ) |>
         dplyr::filter(
-            dplyr::if_else(HexNAc >= 3,
-                         Hex >= 3,
+            dplyr::if_else(.data[["HexNAc"]] >= 3,
+                         .data[["Hex"]] >= 3,
                          TRUE)
         )
 
     } else {
         combo_data = combo_data |>
         dplyr::filter(
-            dplyr::if_else(Neu5Ac > 0 | HexA > 0,
-                         Hex >= 3 & HexNAc >= 3 & ((HexNAc-2) >= (Neu5Ac + HexA)),
+            dplyr::if_else(.data[["Neu5Ac"]] > 0 | .data[["HexA"]] > 0,
+                         .data[["Hex"]] >= 3 & .data[["HexNAc"]] >= 3 &
+                           ((.data[["HexNAc"]] - 2) >= (.data[["Neu5Ac"]] + .data[["HexA"]])),
                          TRUE)
           ) |>
         dplyr::filter(
-            dplyr::if_else(dHex >=1 & !(Hex %in% 1:3),
-                         (HexNAc + Hex -5+1) >= dHex,
+            dplyr::if_else(.data[["dHex"]] >= 1 & !(.data[["Hex"]] %in% 1:3),
+                         (.data[["HexNAc"]] + .data[["Hex"]] - 5 + 1) >= .data[["dHex"]],
                          TRUE)
           ) |>
         dplyr::filter(
-            dplyr::if_else(HexNAc == 2 & Hex %in% 1:3,
-                         dHex <= 1 & dplyr::if_all(dplyr::all_of(other_mono_name), ~ .x == 0),
+            dplyr::if_else(.data[["HexNAc"]] == 2 & .data[["Hex"]] %in% 1:3,
+                         .data[["dHex"]] <= 1 & dplyr::if_all(dplyr::all_of(other_mono_name), ~ .x == 0),
                          TRUE)
           ) |>
         dplyr::filter(
-            dplyr::if_else(HexNAc >= 3,
-                         Hex >= 3,
+            dplyr::if_else(.data[["HexNAc"]] >= 3,
+                         .data[["Hex"]] >= 3,
                          TRUE)
         )
 
@@ -204,56 +206,59 @@ use_o_glycan_rules = function(combo_data) {
     if ('Neu5Gc' %in% colnames(combo_data)) {
         combo_data = combo_data |> 
         dplyr::filter(
-            dplyr::if_else(Neu5Ac > 0 | Neu5Gc > 0,
-                         (Hex + HexNAc + 1) >= (Neu5Ac + Neu5Gc) & Hex >= 1 & HexNAc >= 1,
+            dplyr::if_else(.data[["Neu5Ac"]] > 0 | .data[["Neu5Gc"]] > 0,
+                         (.data[["Hex"]] + .data[["HexNAc"]] + 1) >= (.data[["Neu5Ac"]] + .data[["Neu5Gc"]]) &
+                           .data[["Hex"]] >= 1 & .data[["HexNAc"]] >= 1,
                          TRUE)
         ) |>
         dplyr::filter(
-            dplyr::if_else(Hex >= 0 & HexNAc > 0,
-                         (HexNAc + 1) >= Hex,
+            dplyr::if_else(.data[["Hex"]] >= 0 & .data[["HexNAc"]] > 0,
+                         (.data[["HexNAc"]] + 1) >= .data[["Hex"]],
                          TRUE)
         ) |>
         dplyr::filter(
-            dplyr::if_else(dHex >= 0,
-                         (Hex + HexNAc) >= dHex,
+            dplyr::if_else(.data[["dHex"]] >= 0,
+                         (.data[["Hex"]] + .data[["HexNAc"]]) >= .data[["dHex"]],
                          TRUE)
         ) |>
         dplyr::filter(
-            dplyr::if_else(Neu5Ac > 0 | Neu5Gc > 0 | dHex >= 0,
-                         (Hex + HexNAc) >= (Neu5Ac + Neu5Gc + dHex),
+            dplyr::if_else(.data[["Neu5Ac"]] > 0 | .data[["Neu5Gc"]] > 0 | .data[["dHex"]] >= 0,
+                         (.data[["Hex"]] + .data[["HexNAc"]]) >=
+                           (.data[["Neu5Ac"]] + .data[["Neu5Gc"]] + .data[["dHex"]]),
                          TRUE)
         ) |>
         dplyr::filter(
-            dplyr::if_else(HexA > 0,
-                         Hex >= HexA & Hex >= 1 & HexNAc >= 1,
+            dplyr::if_else(.data[["HexA"]] > 0,
+                         .data[["Hex"]] >= .data[["HexA"]] & .data[["Hex"]] >= 1 & .data[["HexNAc"]] >= 1,
                          TRUE)
         )
 
     } else {
       combo_data = combo_data |>
         dplyr::filter(
-          dplyr::if_else(Neu5Ac > 0,
-                         (Hex + HexNAc + 1) >= Neu5Ac & Hex >= 1 & HexNAc >= 1,
+          dplyr::if_else(.data[["Neu5Ac"]] > 0,
+                         (.data[["Hex"]] + .data[["HexNAc"]] + 1) >= .data[["Neu5Ac"]] &
+                           .data[["Hex"]] >= 1 & .data[["HexNAc"]] >= 1,
                          TRUE)
         ) |>
         dplyr::filter(
-          dplyr::if_else(Hex >= 0 & HexNAc > 0,
-                         (HexNAc + 1) >= Hex,
+          dplyr::if_else(.data[["Hex"]] >= 0 & .data[["HexNAc"]] > 0,
+                         (.data[["HexNAc"]] + 1) >= .data[["Hex"]],
                          TRUE)
         ) |>
         dplyr::filter(
-          dplyr::if_else(dHex >= 0,
-                         (Hex + HexNAc) >= dHex,
+          dplyr::if_else(.data[["dHex"]] >= 0,
+                         (.data[["Hex"]] + .data[["HexNAc"]]) >= .data[["dHex"]],
                          TRUE)
         ) |>
         dplyr::filter(
-          dplyr::if_else(Neu5Ac > 0 | dHex >= 0,
-                         (Hex + HexNAc) >= (Neu5Ac + dHex),
+          dplyr::if_else(.data[["Neu5Ac"]] > 0 | .data[["dHex"]] >= 0,
+                         (.data[["Hex"]] + .data[["HexNAc"]]) >= (.data[["Neu5Ac"]] + .data[["dHex"]]),
                          TRUE)
         ) |>
         dplyr::filter(
-          dplyr::if_else(HexA > 0,
-                         Hex >= HexA & Hex >= 1 & HexNAc >= 1,
+          dplyr::if_else(.data[["HexA"]] > 0,
+                         .data[["Hex"]] >= .data[["HexA"]] & .data[["Hex"]] >= 1 & .data[["HexNAc"]] >= 1,
                          TRUE)
         )
     }
@@ -269,26 +274,26 @@ use_gpi_rules = function(combo_data) {
     if ('Neu5Gc' %in% colnames(combo_data)) {
       combo_data = combo_data |>
         dplyr::filter(
-          dplyr::if_else(Neu5Ac > 0 | Neu5Gc > 0,
-                         Hex >= 4,
+          dplyr::if_else(.data[["Neu5Ac"]] > 0 | .data[["Neu5Gc"]] > 0,
+                         .data[["Hex"]] >= 4,
                          TRUE)
           ) |>
         dplyr::filter(
-          dplyr::if_else(EtNP > 0,
-                         Hex >= EtNP,
+          dplyr::if_else(.data[["EtNP"]] > 0,
+                         .data[["Hex"]] >= .data[["EtNP"]],
                          TRUE)
           ) |>
         dplyr::filter(
           dplyr::if_else(
-            Hex == 5,
-            HexNAc == 1,
+            .data[["Hex"]] == 5,
+            .data[["HexNAc"]] == 1,
             TRUE)
           )
 
     } else {
-      combo_data = dplyr::filter(combo_data, dplyr::if_else(Neu5Ac > 0, Hex >= 4, TRUE)) |>
-        dplyr::filter(dplyr::if_else(EtNP > 0, Hex >= EtNP, TRUE)) |>
-        dplyr::filter(dplyr::if_else(Hex == 5, HexNAc == 1, TRUE))
+      combo_data = dplyr::filter(combo_data, dplyr::if_else(.data[["Neu5Ac"]] > 0, .data[["Hex"]] >= 4, TRUE)) |>
+        dplyr::filter(dplyr::if_else(.data[["EtNP"]] > 0, .data[["Hex"]] >= .data[["EtNP"]], TRUE)) |>
+        dplyr::filter(dplyr::if_else(.data[["Hex"]] == 5, .data[["HexNAc"]] == 1, TRUE))
     }
     return(combo_data)
 }
@@ -299,30 +304,30 @@ use_gpi_rules = function(combo_data) {
 use_gsl_rules = function(combo_data) {
     combo_data = combo_data |>
       dplyr::filter(
-        dplyr::if_else(dHex >= 1,
-                       Hex >= 3,
+        dplyr::if_else(.data[["dHex"]] >= 1,
+                       .data[["Hex"]] >= 3,
                        TRUE)
       ) |>
       dplyr::filter(
-        dplyr::if_else(HexNAc >= 3,
-                       Hex >= 2,
+        dplyr::if_else(.data[["HexNAc"]] >= 3,
+                       .data[["Hex"]] >= 2,
                        TRUE)
       ) |>
       dplyr::filter(
-        dplyr::if_else(dHex > 0,
-                       dHex <= Hex + HexNAc - 1,
+        dplyr::if_else(.data[["dHex"]] > 0,
+                       .data[["dHex"]] <= .data[["Hex"]] + .data[["HexNAc"]] - 1,
                        TRUE)
       ) |>
       dplyr::filter(
-        dplyr::if_else(Hex >= 1,
-                       Hex - HexNAc >= 1 & Hex - HexNAc <= 3,
+        dplyr::if_else(.data[["Hex"]] >= 1,
+                       .data[["Hex"]] - .data[["HexNAc"]] >= 1 & .data[["Hex"]] - .data[["HexNAc"]] <= 3,
                        TRUE)
       ) |>
       dplyr::filter(
-        dplyr::if_else(Neu5Ac + Neu5Gc >= 2,
-                       Hex >=2,
+        dplyr::if_else(.data[["Neu5Ac"]] + .data[["Neu5Gc"]] >= 2,
+                       .data[["Hex"]] >= 2,
                        TRUE)
-      )    
+      )
     return(combo_data)
 }
 
@@ -331,33 +336,33 @@ use_gsl_rules = function(combo_data) {
 use_hmo_rules = function(combo_data) {
     combo_data = combo_data |> 
         dplyr::filter(
-            dplyr::if_else(dHex > 0 | Neu5Ac > 0,
-                           dHex + Neu5Ac >= 0 & dHex + Neu5Ac <= 5,
+            dplyr::if_else(.data[["dHex"]] > 0 | .data[["Neu5Ac"]] > 0,
+                           .data[["dHex"]] + .data[["Neu5Ac"]] >= 0 & .data[["dHex"]] + .data[["Neu5Ac"]] <= 5,
                            TRUE)
-        ) |> 
+        ) |>
         dplyr::filter(
-            dplyr::if_else(dHex >= 1, 
-                            Hex >= 2,
+            dplyr::if_else(.data[["dHex"]] >= 1,
+                            .data[["Hex"]] >= 2,
                             TRUE)
-        ) |> 
+        ) |>
         dplyr::filter(
-            dplyr::if_else(Neu5Ac >= 1,
-                            Hex >= 2,
+            dplyr::if_else(.data[["Neu5Ac"]] >= 1,
+                            .data[["Hex"]] >= 2,
                             TRUE)
-        ) |> 
+        ) |>
         dplyr::filter(
-            dplyr::if_else(HexNAc >= 1,
-                            Hex >= HexNAc,
+            dplyr::if_else(.data[["HexNAc"]] >= 1,
+                            .data[["Hex"]] >= .data[["HexNAc"]],
                             TRUE)
-        ) |> 
+        ) |>
         dplyr::filter(
-            dplyr::if_else(HexNAc >= 0,
-                            Hex - HexNAc <= 3,
+            dplyr::if_else(.data[["HexNAc"]] >= 0,
+                            .data[["Hex"]] - .data[["HexNAc"]] <= 3,
                             TRUE)
-        ) |> 
+        ) |>
         dplyr::filter(
-            dplyr::if_else(dHex > 0 | Neu5Ac > 0,
-                            dHex + Neu5Ac <= Hex + HexNAc,
+            dplyr::if_else(.data[["dHex"]] > 0 | .data[["Neu5Ac"]] > 0,
+                            .data[["dHex"]] + .data[["Neu5Ac"]] <= .data[["Hex"]] + .data[["HexNAc"]],
                             TRUE)
         )
     return(combo_data)
@@ -465,8 +470,7 @@ apply_glycan_library_rules = function(mono_adduct_modif_combinations, monosaccha
         dplyr::all_of(mono_name), 
         dplyr::all_of(adduct_name), 
         !!derivatization_type, 
-        total_monosaccharides, 
-        charge_state, 
+        dplyr::all_of(c("total_monosaccharides", "charge_state")), 
         dplyr::everything()        
     )
 

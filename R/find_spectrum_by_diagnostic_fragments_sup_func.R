@@ -1,8 +1,3 @@
-
-
-
-
-
 prepare_denoised_ms_data_ms2 = function(denoised_data, ms_data_raw) {
   if (!inherits(denoised_data, "denoised_ms_data_ms2")) {
     stop("Invalid denoised_data object. Must be of class 'denoised_ms_data_ms2'.")
@@ -10,7 +5,7 @@ prepare_denoised_ms_data_ms2 = function(denoised_data, ms_data_raw) {
 
   denoising_info = denoised_data$denoising_result
 
-  denoising_info = dplyr::filter(denoising_info, denoising_status == "success")
+  denoising_info = dplyr::filter(denoising_info, .data[["denoising_status"]] == "success")
 
   success_denoised_ms2_ids = denoising_info$ms2_spectrum_id
 
@@ -149,3 +144,303 @@ find_ms2_spectra_by_diagnostic_fragments = function(
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+plot_diagnostic_fragments_signal_info <- function(
+    denoised_ms_data_ms2,
+    ms_data_raw,
+    diagnostic_frags_list,
+    diagnostic_frags_exp,
+    mass_error_tolerance_type,
+    mass_error_tolerance_val
+) {
+  expr <- parse(text = diagnostic_frags_exp)
+  
+  # get the positive-only logical expression 
+  keep_positive_conditions <- function(node, negative = FALSE) {
+    if (is.symbol(node)) {
+      if (negative) return(NULL)
+      return(node)
+    }
+    
+    if (!is.call(node) || !is.symbol(node[[1L]])) {
+      stop(
+        "Use only fragment names, &, |, ! and parentheses.",
+        call. = FALSE
+      )
+    }
+    
+    op <- as.character(node[[1L]])
+    
+    if (op == "(") {
+      return(keep_positive_conditions(node[[2L]], negative))
+    }
+    
+    if (op == "!") {
+      return(keep_positive_conditions(node[[2L]], !negative))
+    }
+    
+    if (!op %in% c("&", "|")) {
+      stop(
+        "Use only fragment names, &, |, ! and parentheses.",
+        call. = FALSE
+      )
+    }
+    
+    left <- keep_positive_conditions(node[[2L]], negative)
+    right <- keep_positive_conditions(node[[3L]], negative)
+
+    if (is.null(left)) return(right)
+    if (is.null(right)) return(left)
+    
+    if (negative) {
+      op <- if (op == "&") "|" else "&"
+    }
+    call(op, left, right)
+  }
+  
+  positive_expr <- keep_positive_conditions(expr[[1L]])
+  
+  if (is.null(positive_expr)) {
+    positive_expr <- quote(TRUE)
+  }
+  
+  diagnostic_frags_exp_positive <- paste(
+    deparse(positive_expr, width.cutoff = 500L),
+    collapse = " "
+  )
+  
+  # get the target spectra for positive logical expression
+  positive_target_spectra <- find_ms2_spectra_by_diagnostic_fragments(
+    denoised_ms_data_ms2 = denoised_ms_data_ms2,
+    ms_data_raw = ms_data_raw,
+    diagnostic_frags_list = diagnostic_frags_list,
+    diagnostic_frags_exp = diagnostic_frags_exp_positive,
+    mass_error_tolerance_type = mass_error_tolerance_type,
+    mass_error_tolerance_val = mass_error_tolerance_val
+  )
+
+  # extract the target MS2 spectra for positive diagnostic conditions
+  if (is.null(positive_target_spectra) || nrow(positive_target_spectra) == 0L) {
+    stop("No MS2 spectra satisfy the positive diagnostic conditions.")
+  }
+  
+  polarity <- get_logical_exp_polarity(expr[[1L]])  
+  polarity <- polarity[!duplicated(names(polarity))]
+  
+  targets <- diagnostic_frags_list[names(polarity)]
+  
+  fragments <- data.frame(
+    fragment = names(polarity),
+    target_mz = as.numeric(unlist(targets, use.names = FALSE)),
+    condition = unname(polarity),
+    stringsAsFactors = FALSE
+  )
+  
+  fragments <- fragments[order(fragments$target_mz), ]
+
+  # extract the spectrum IDs and ensure they match the positive target spectra
+  ids <- as.character(denoised_ms_data_ms2[["spectrumId"]])
+  target_ids <- as.character(positive_target_spectra[["ms2_spectrum_id"]])
+  all_ms2_peaks_data <- Spectra::peaksData(denoised_ms_data_ms2)
+  
+  if (anyNA(target_ids) || !all(target_ids %in% ids)) {
+    stop(
+      "Target spectrum IDs are missing or do not match the supplied spectra."
+    )
+  }
+
+  plot_data_list <- vector("list", length(target_ids))
+
+  # extract the MS2 peaks data for each target ID
+  for (i in seq_along(target_ids)) {
+    id = target_ids[i]
+    selected <- which(ids == id)
+
+    # Ensure exactly one MS2 spectrum is found for the current target ID
+    if (length(selected) != 1L) {
+      stop(
+        "Expected exactly one MS2 spectrum for ID: ", id, "; found: ", length(selected)
+        )
+    }
+
+    ms2_peaks_data <- all_ms2_peaks_data[[selected]]
+    mz <- ms2_peaks_data[, "mz"]
+    intensity <- ms2_peaks_data[, "intensity"]
+    
+    valid <- is.finite(mz) & is.finite(intensity)
+
+    out = fragments
+    out = dplyr::mutate(out,
+                        ms2_index = selected,
+                        ms2_spectrum_id = id, 
+                        matched_mz = NA_real_,
+                        intensity = 0,
+                        mass_error = NA_real_
+                        )
+
+    for (j in seq_len(nrow(out))) {
+      error <- mz - out$target_mz[j]
+      
+      if (mass_error_tolerance_type == "ppm_tolerance") {
+        error <- error / out$target_mz[j] * 1e6
+      }
+
+      candidates <- which(
+        valid & abs(error) <= mass_error_tolerance_val
+      )
+      
+      if (length(candidates) > 0L) {
+        # use the candidate with the highest intensity in the mass error tolerance window
+        best <- candidates[which.max(intensity[candidates])]
+
+        out$matched_mz[j] <- mz[best]
+        out$intensity[j] <- intensity[best]
+        out$mass_error[j] <- error[best]
+      }
+    }
+    plot_data_list[[i]] <- out
+  }
+  
+  plot_data <- dplyr::bind_rows(plot_data_list)  
+  # rownames(plot_data) <- NULL
+
+  intensity_plot_data = plot_data |>
+    dplyr::filter(!is.na(.data[["matched_mz"]])) |>
+    dplyr::mutate(
+      intensity_minmax_norm =
+        (.data[["intensity"]] - min(.data[["intensity"]])) /
+        (max(.data[["intensity"]]) - min(.data[["intensity"]]))
+    )
+
+  error_plot_data = dplyr::filter(plot_data, !is.na(.data[["mass_error"]]))
+
+  mz_breaks <- sort(unique(fragments$target_mz))
+  jitter_width <- if (length(mz_breaks) > 1L) {
+    min(diff(mz_breaks)) * 0.15
+  } else {
+    max(abs(mz_breaks) * 0.01, 0.01)
+  }
+  x_limits <- range(mz_breaks) + c(-jitter_width, jitter_width)
+
+  x_scale <- function() {
+    ggplot2::scale_x_continuous(
+      limits = x_limits,
+      breaks = mz_breaks,
+      labels = function(x) format(x, digits = 8, trim = TRUE),
+      expand = ggplot2::expansion(mult = 0.1)
+    )
+  }
+  colour_scale <- function() {
+    ggplot2::scale_colour_manual(
+      values = c(positive = "black", negative = "grey50"),
+      limits = c("positive", "negative"),
+      labels = c("Positive_condition", "Negative_condition"),
+      name = "Condition",
+      drop = FALSE
+    )
+  }
+  
+  p_intensity <- ggplot2::ggplot(
+    intensity_plot_data,
+    ggplot2::aes(
+      x = .data[["target_mz"]],
+      y = .data[["intensity_minmax_norm"]]
+    )
+  ) +
+    ggplot2::geom_line(
+      ggplot2::aes(group = .data[["ms2_index"]]),
+      colour = "black", linewidth = 0.4, alpha = 0.5, show.legend = FALSE
+    ) +
+    ggplot2::geom_point(
+      ggplot2::aes(colour = .data[["condition"]]),
+      size = 1.5
+    ) +
+    x_scale() + colour_scale() +
+    ggplot2::expand_limits(y = 0) +
+    ggplot2::labs(
+      x = NULL,
+      y = "Intensity (min-max normalized)"
+    ) +
+    ggplot2::theme_classic(base_size = 12) +
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_blank(),
+      axis.ticks.x = ggplot2::element_blank()
+    )
+
+  p_error <- ggplot2::ggplot(
+    error_plot_data,
+    ggplot2::aes(
+      x = .data[["target_mz"]],
+      y = .data[["mass_error"]]
+    )
+  ) +
+    ggplot2::geom_hline(
+      yintercept = 0,
+      colour = "grey70",
+      linetype = "dashed",
+      linewidth = 0.3
+    ) +
+    ggplot2::geom_point(
+      ggplot2::aes(colour = .data[["condition"]]),
+      size = 1.5,
+      position = ggplot2::position_jitter(
+        width = jitter_width,
+        height = 0,
+        seed = 123
+      )
+    ) +
+    x_scale() + colour_scale() +
+    ggplot2::scale_y_continuous(
+      limits = c(
+        -mass_error_tolerance_val,
+        mass_error_tolerance_val
+      ),
+      breaks = seq(
+        -mass_error_tolerance_val,
+        mass_error_tolerance_val,
+        length.out = 5L
+      ),
+      expand = ggplot2::expansion(mult = 0)
+    ) +
+    ggplot2::labs(
+      x = "Diagnostic fragment m/z",
+      y = mass_error_tolerance_type
+    ) +
+    ggplot2::theme_classic(base_size = 12)
+
+  combined <- patchwork::wrap_plots(
+    p_intensity,
+    p_error,
+    ncol = 1,
+    heights = c(2, 1),
+    guides = "collect"
+  ) & ggplot2::theme(legend.position = "top")
+  
+  return(
+    list(
+      diagnostic_fragments_signal_info_plot = combined,
+      diagnostic_fragments_signal_info_data = plot_data
+    )
+  )
+}
